@@ -12,17 +12,13 @@ export default function Encyclopedia() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Determine if we're on a detail / edit / new page
   const isRootPage = location.pathname === "/encyclopedia";
 
-  // ---------------------------------------
-  // Fetch concepts once
-  // ---------------------------------------
+  // Fetch concepts
   useEffect(() => {
     api.get("/concepts").then((res) => {
       setConcepts(res.data);
 
-      // Build category tree
       const grouped = {};
       res.data.forEach((c) => {
         const cat = c.category || "Uncategorized";
@@ -34,19 +30,17 @@ export default function Encyclopedia() {
     });
   }, []);
 
-  // ---------------------------------------
-  // Filter concepts (search + category)
-  // ---------------------------------------
+  // Filter logic
   const filteredConcepts = concepts.filter((c) => {
-    const searchText = search.toLowerCase();
+    const combined = `
+      ${c.title || ""}
+      ${c.summary || ""}
+      ${c.category || ""}
+      ${c.tags?.join(" ") || ""}
+    `.toLowerCase();
 
-    const combined =
-      `${c.title || ""} ${c.summary || ""} ${c.category || ""} ${
-        c.tags?.join(" ") || ""
-      }`.toLowerCase();
-
-    const matchesSearch = searchText
-      ? combined.includes(searchText)
+    const matchesSearch = search
+      ? combined.includes(search.toLowerCase())
       : true;
 
     const matchesCategory = selectedCategory
@@ -56,9 +50,13 @@ export default function Encyclopedia() {
     return matchesSearch && matchesCategory;
   });
 
+  const resetFilters = () => {
+    setSearch("");
+    setSelectedCategory(null);
+  };
+
   return (
     <div className="flex h-screen">
-      {/* Sidebar only shows on encyclopedia root */}
       {isRootPage && (
         <Sidebar
           categories={categories}
@@ -67,11 +65,10 @@ export default function Encyclopedia() {
         />
       )}
 
-      {/* Main panel */}
       <div className="flex-1 p-6 overflow-auto">
-        {/* Header (only on root list view) */}
+        {/* Header */}
         {isRootPage && (
-          <div className="flex items-center justify-between mb-4 gap-4">
+          <div className="flex items-center gap-3 mb-4">
             <input
               type="text"
               placeholder="Search concepts, tags, categories..."
@@ -81,22 +78,24 @@ export default function Encyclopedia() {
             />
 
             <button
+              onClick={resetFilters}
+              className="bg-gray-200 text-gray-700 px-3 py-2 rounded hover:bg-gray-300"
+            >
+              Reset
+            </button>
+
+            <button
               onClick={() => navigate("/encyclopedia/new")}
-              className="bg-blue-600 text-white px-4 py-2 rounded whitespace-nowrap"
+              className="bg-blue-600 text-white px-4 py-2 rounded ml-auto"
             >
               + New Concept
             </button>
           </div>
         )}
 
-        {/* Child routes */}
         <Outlet
           context={{
             concepts: filteredConcepts,
-            clearFilters: () => {
-              setSearch("");
-              setSelectedCategory(null);
-            },
           }}
         />
       </div>
