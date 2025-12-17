@@ -1,52 +1,76 @@
 import { useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { api } from "../api";
+import SessionTimeline from "./Session/components/SessionTimeline";
+import SessionModal from "./Session/components/SessionModal";
 
 export default function PlayerDetail() {
-  const { id } = useParams();
+  const { id: playerId } = useParams();
+
   const [player, setPlayer] = useState(null);
   const [allDrills, setAllDrills] = useState([]);
   const [assignedDrills, setAssignedDrills] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [modalSession, setModalSession] = useState(null); // null = modal closed
 
-
-
-  const changeTypes = [
-    "Position Change",
-    "Mechanical Adjustment",
-    "Injury Update",
-    "Other",
-  ];
-
-  // Fetch player and drills
-  useEffect(() => {
-    const fetchPlayer = async () => {
-      const res = await api.get(`/players/${id}`);
-      setPlayer(res.data);
-      setAssignedDrills(res.data.drills || []);
-    };
-
-    const fetchDrills = async () => {
-      const res = await api.get("/drills");
-      setAllDrills(res.data);
-    };
-
-    fetchPlayer();
-    fetchDrills();
-  }, [id]);
-
-  // Add a drill
-  const addDrill = async (drillId) => {
-    await api.post(`/player-drills/players/${id}/drills/${drillId}`);
-    const res = await api.get(`/players/${id}`);
+  // ----------------------------
+  // Fetch helpers
+  // ----------------------------
+  const fetchPlayer = async () => {
+    const res = await api.get(`/players/${playerId}`);
+    setPlayer(res.data);
     setAssignedDrills(res.data.drills || []);
   };
 
+  const fetchDrills = async () => {
+    const res = await api.get("/drills");
+    setAllDrills(res.data);
+  };
 
+  const fetchSessions = async () => {
+    const res = await api.get(`/sessions/player/${playerId}`);
+    setSessions(res.data);
+  };
+
+  useEffect(() => {
+    fetchPlayer();
+    fetchDrills();
+    fetchSessions();
+  }, [playerId]);
+
+  // ----------------------------
+  // Drill assignment
+  // ----------------------------
+  const addDrill = async (drillId) => {
+    await api.post(`/player-drills/players/${playerId}/drills/${drillId}`);
+    fetchPlayer();
+  };
+
+  // ----------------------------
+  // Session deletion
+  // ----------------------------
+  const handleDeleteSession = async (sessionId) => {
+    if (window.confirm("Are you sure you want to delete this session?")) {
+      await api.delete(`/sessions/${sessionId}`);
+      fetchSessions();
+    }
+  };
 
   if (!player) return <div className="p-8">Loading...</div>;
 
   return (
     <div className="p-8 space-y-6 max-w-3xl mx-auto bg-white shadow rounded-md">
+
+      {/* Add Session Button */}
+      <div className="flex justify-end">
+        <button
+          className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
+          onClick={() => setModalSession({})} // empty object = create new
+        >
+          + New Session
+        </button>
+      </div>
+
       {/* Player Info */}
       <div>
         <h1 className="text-2xl font-bold">
@@ -83,8 +107,8 @@ export default function PlayerDetail() {
           <ul className="list-disc pl-6">
             {player.history.map((item) => (
               <li key={item.id}>
-                <strong>{new Date(item.date).toLocaleDateString()}</strong>: {item.change_type}{" "}
-                {item.notes && `- ${item.notes}`}
+                <strong>{new Date(item.date).toLocaleDateString()}</strong>:{" "}
+                {item.change_type} {item.notes && `- ${item.notes}`}
               </li>
             ))}
           </ul>
@@ -119,6 +143,29 @@ export default function PlayerDetail() {
           ))}
         </ul>
       </div>
+
+      {/* Session Timeline */}
+      <div>
+        <h2 className="text-xl font-semibold mt-6">Sessions</h2>
+        <SessionTimeline
+          sessions={sessions}
+          onSelect={(session) => setModalSession(session)}
+          onDelete={handleDeleteSession}
+        />
+      </div>
+
+      {/* Session Modal */}
+      {modalSession !== null && (
+        <SessionModal
+          playerId={playerId}
+          session={modalSession.session_type ? modalSession : null}
+          onClose={() => setModalSession(null)}
+          onUpdated={() => {
+            setModalSession(null);
+            fetchSessions();
+          }}
+        />
+      )}
     </div>
   );
 }

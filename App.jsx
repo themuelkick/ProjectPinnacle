@@ -13,22 +13,33 @@ import ConceptForm from "./pages/Encyclopedia/ConceptForm";
 
 function App() {
   return (
-    <Routes>
-      {/* Dashboard */}
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/players/new" element={<CreatePlayer />} />
-      <Route path="/drills/new" element={<CreateDrill />} />
-      <Route path="/players/:id" element={<PlayerDetail />} />
-      <Route path="/drills/:id" element={<DrillDetail />} />
+    <div
+      className="min-h-screen bg-cover bg-center bg-fixed"
+      style={{ backgroundImage: "url('/ibg.jpg')" }}
+    >
+      <Routes>
+        {/* Dashboard */}
+        <Route path="/" element={<Dashboard />} />
 
-      {/* Encyclopedia with nested routes */}
-      <Route path="/encyclopedia" element={<Encyclopedia />}>
-        <Route index element={<ConceptList />} />
-        <Route path="new" element={<ConceptForm />} />
-        <Route path=":conceptId/edit" element={<ConceptForm isEdit={true} />} />
-        <Route path=":conceptId" element={<ConceptDetail />} />
-      </Route>
-    </Routes>
+        {/* Create routes */}
+        <Route path="/players/new" element={<CreatePlayer />} />
+        <Route path="/drills/new" element={<CreateDrill />} />
+
+        {/* Drill detail */}
+        <Route path="/drills/:id" element={<DrillDetail />} />
+
+        {/* Player detail (sessions handled internally) */}
+        <Route path="/players/:id" element={<PlayerDetail />} />
+
+        {/* Encyclopedia with nested routes */}
+        <Route path="/encyclopedia" element={<Encyclopedia />}>
+          <Route index element={<ConceptList />} />
+          <Route path="new" element={<ConceptForm />} />
+          <Route path=":conceptId/edit" element={<ConceptForm isEdit />} />
+          <Route path=":conceptId" element={<ConceptDetail />} />
+        </Route>
+      </Routes>
+    </div>
   );
 }
 
