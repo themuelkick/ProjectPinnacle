@@ -28,11 +28,18 @@ class SessionMetric(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("sessions.id"), nullable=False)
+
+    source = Column(String, nullable=False)        # rapsodo, trackman, etc
+    pitch_type = Column(String, nullable=True)     # Fastball, Cutter, etc
+
     metric_name = Column(String, nullable=False)
     metric_value = Column(String, nullable=False)
     unit = Column(String, nullable=True)
 
     session = relationship("Session", back_populates="metrics")
+
+
+
 
 
 class SessionMedia(Base):
