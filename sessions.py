@@ -2,12 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
 from collections import defaultdict
+from sqlalchemy.exc import IntegrityError
 
 from app.models.session import Session, SessionMetric, SessionMedia
+from app.models.player_drill import PlayerDrill
+from app.models.drill import Drill
 from app.db import SessionLocal
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
-
 
 # -------------------------------
 # Dependency
@@ -18,7 +20,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
 
 # -------------------------------
 # Helpers
@@ -34,23 +35,10 @@ def parse_date(date_str):
             detail="Invalid date format. Use YYYY-MM-DD."
         )
 
-
 def flatten_metrics(metrics_payload, session_id, db: Session):
-    """
-    Takes grouped metrics from the frontend and stores them FLAT.
-    Expected shape:
-    [
-      {
-        source: "rapsodo",
-        pitch_type: "Fastball",
-        metrics: [{ metric_name, metric_value, unit }]
-      }
-    ]
-    """
     for group in metrics_payload:
         source = group.get("source")
         pitch_type = group.get("pitch_type")
-
         for metric in group.get("metrics", []):
             db.add(SessionMetric(
                 session_id=session_id,
@@ -61,13 +49,8 @@ def flatten_metrics(metrics_payload, session_id, db: Session):
                 unit=metric.get("unit")
             ))
 
-
 def serialize_session(session: Session):
-    """
-    Return session with GROUPED metrics by (source + pitch_type)
-    """
     grouped = defaultdict(list)
-
     for m in session.metrics:
         key = (m.source, m.pitch_type)
         grouped[key].append({
@@ -75,7 +58,6 @@ def serialize_session(session: Session):
             "metric_value": m.metric_value,
             "unit": m.unit
         })
-
     return {
         "id": session.id,
         "player_id": session.player_id,
@@ -93,12 +75,12 @@ def serialize_session(session: Session):
         "media": session.media
     }
 
-
 # -------------------------------
 # Create Session
 # -------------------------------
 @router.post("/")
 def create_session(session_data: dict, db: Session = Depends(get_db)):
+    # Create session
     new_session = Session(
         player_id=session_data["player_id"],
         date=parse_date(session_data.get("date")),
@@ -109,10 +91,10 @@ def create_session(session_data: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_session)
 
-    # Metrics
+    # Add metrics
     flatten_metrics(session_data.get("metrics", []), new_session.id, db)
 
-    # Media
+    # Add media
     for media in session_data.get("media", []):
         db.add(SessionMedia(
             session_id=new_session.id,
@@ -120,11 +102,21 @@ def create_session(session_data: dict, db: Session = Depends(get_db)):
             media_type=media.get("media_type")
         ))
 
+    # Assign drills to player with session date
+    drill_ids = session_data.get("drill_ids", [])
+    for drill_id in drill_ids:
+        try:
+            db.add(PlayerDrill(
+                player_id=session_data["player_id"],
+                drill_id=drill_id,
+                date_performed=new_session.date  # <-- save session date
+            ))
+        except IntegrityError:
+            db.rollback()  # ignore if drill already assigned
     db.commit()
+
     db.refresh(new_session)
-
     return serialize_session(new_session)
-
 
 # -------------------------------
 # Get Sessions for Player
@@ -137,9 +129,7 @@ def get_sessions_for_player(player_id: str, db: Session = Depends(get_db)):
         .order_by(Session.date.desc())
         .all()
     )
-
     return [serialize_session(s) for s in sessions]
-
 
 # -------------------------------
 # Get Single Session
@@ -149,9 +139,7 @@ def get_session(session_id: int, db: Session = Depends(get_db)):
     session = db.query(Session).filter(Session.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-
     return serialize_session(session)
-
 
 # -------------------------------
 # Update Session
@@ -164,27 +152,25 @@ def update_session(session_id: int, session_data: dict, db: Session = Depends(ge
 
     if "date" in session_data:
         session.date = parse_date(session_data["date"])
+    session.session_type = session_data.get("session_type", session.session_type)
+    session.notes = session_data.get("notes", session.notes)
 
-    session.session_type = session_data.get(
-        "session_type", session.session_type
-    )
-    session.notes = session_data.get(
-        "notes", session.notes
-    )
+    # Remove old metrics
+    db.query(SessionMetric).filter(SessionMetric.session_id == session_id).delete()
 
-    # ❌ remove old metrics
-    db.query(SessionMetric).filter(
-        SessionMetric.session_id == session_id
-    ).delete()
-
-    # ✅ insert new metrics
+    # Insert new metrics
     flatten_metrics(session_data.get("metrics", []), session_id, db)
 
+    # Optionally update assigned drills
+    drill_ids = session_data.get("drill_ids", [])
+    for drill_id in drill_ids:
+        try:
+            db.add(PlayerDrill(player_id=session.player_id, drill_id=drill_id))
+        except IntegrityError:
+            db.rollback()
     db.commit()
     db.refresh(session)
-
     return serialize_session(session)
-
 
 # -------------------------------
 # Delete Session
@@ -194,7 +180,6 @@ def delete_session(session_id: int, db: Session = Depends(get_db)):
     session = db.query(Session).filter(Session.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-
     db.delete(session)
     db.commit()
     return {"detail": "Session deleted"}

@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.player import Player
 from app.models.player_history import PlayerHistory
+from app.models.drill import Drill
+from app.models.player_drill import PlayerDrill
 from app.schemas.player import PlayerCreate, PlayerRead
 
 router = APIRouter(prefix="/players", tags=["players"])
@@ -50,4 +52,19 @@ def get_player(player_id: str, db: Session = Depends(get_db)):
     player = db.query(Player).get(player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+
+    # Fetch drills assigned to this player
+    player_drills = db.query(PlayerDrill).filter(PlayerDrill.player_id == player.id).all()
+    drills_with_info = []
+    for pd in player_drills:
+        drill = db.query(Drill).get(pd.drill_id)
+        if drill:
+            drills_with_info.append({
+                "id": drill.id,
+                "title": drill.title
+            })
+
+    # Attach drills to player object dynamically
+    setattr(player, "drills", drills_with_info)
+
     return player

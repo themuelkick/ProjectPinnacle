@@ -3,6 +3,17 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 # -----------------------
+# Drill Schemas
+# -----------------------
+class DrillRead(BaseModel):
+    id: str
+    title: str
+
+    class Config:
+        from_attributes = True
+
+
+# -----------------------
 # Player History Schemas
 # -----------------------
 class PlayerHistoryBase(BaseModel):
@@ -10,14 +21,17 @@ class PlayerHistoryBase(BaseModel):
     notes: Optional[str] = None
     date: Optional[date] = None
 
+
 class PlayerHistoryCreate(PlayerHistoryBase):
     pass
+
 
 class PlayerHistoryRead(PlayerHistoryBase):
     id: str
 
     class Config:
         from_attributes = True
+
 
 # -----------------------
 # Player Schemas
@@ -29,16 +43,18 @@ class PlayerBase(BaseModel):
     position: Optional[str] = None
     team: Optional[str] = None
 
-    # New fields
+    # Physical attributes
     height_ft: Optional[int] = None
     height_in: Optional[int] = None
     weight_lbs: Optional[int] = None
     bats: Optional[str] = None  # 'R', 'L', 'S'
     throws: Optional[str] = None  # 'R', 'L'
-    notes: Optional[str] = None  # initial notes
+    notes: Optional[str] = None
+
 
 class PlayerCreate(PlayerBase):
     history: Optional[List[PlayerHistoryCreate]] = []
+
 
 class PlayerRead(BaseModel):
     id: str
@@ -58,7 +74,8 @@ class PlayerRead(BaseModel):
 
     history: List[PlayerHistoryRead] = []
 
+    # ✅ THIS IS THE CRITICAL FIX
+    drills: List[DrillRead] = []
+
     class Config:
         from_attributes = True
-
-

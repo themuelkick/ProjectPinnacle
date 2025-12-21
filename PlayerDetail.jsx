@@ -100,22 +100,7 @@ export default function PlayerDetail() {
         </div>
       )}
 
-      {/* History */}
-      <div>
-        <h2 className="text-xl font-semibold">History</h2>
-        {player.history && player.history.length > 0 ? (
-          <ul className="list-disc pl-6">
-            {player.history.map((item) => (
-              <li key={item.id}>
-                <strong>{new Date(item.date).toLocaleDateString()}</strong>:{" "}
-                {item.change_type} {item.notes && `- ${item.notes}`}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No history available.</p>
-        )}
-      </div>
+
 
       {/* Assigned Drills */}
       <div>
@@ -127,26 +112,11 @@ export default function PlayerDetail() {
         </ul>
       </div>
 
-      {/* Add a Drill */}
-      <div>
-        <h2 className="text-xl font-semibold mt-6">Add a Drill</h2>
-        <ul className="list-disc pl-6">
-          {allDrills.map((drill) => (
-            <li key={drill.id}>
-              <button
-                className="text-indigo-600 underline"
-                onClick={() => addDrill(drill.id)}
-              >
-                Add {drill.title}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
+
 
       {/* Session Timeline */}
       <div>
-        <h2 className="text-xl font-semibold mt-6">Sessions</h2>
+        <h2 className="text-xl font-semibold mt-6">Session History</h2>
         <SessionTimeline
           sessions={sessions}
           onSelect={(session) => setModalSession(session)}
@@ -156,15 +126,16 @@ export default function PlayerDetail() {
 
       {/* Session Modal */}
       {modalSession !== null && (
-        <SessionModal
-          playerId={playerId}
-          session={modalSession.session_type ? modalSession : null}
-          onClose={() => setModalSession(null)}
-          onUpdated={() => {
-            setModalSession(null);
-            fetchSessions();
-          }}
-        />
+          <SessionModal
+            playerId={playerId}
+            session={modalSession.session_type ? modalSession : null}
+            onClose={() => setModalSession(null)}
+            onUpdated={() => {
+              setModalSession(null);
+              fetchSessions();  // refresh sessions
+              fetchPlayer();    // refresh assigned drills
+            }}
+          />
       )}
     </div>
   );

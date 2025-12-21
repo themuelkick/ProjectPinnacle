@@ -2,20 +2,15 @@ import { useState, useEffect } from "react";
 import { api } from "../../../api";
 import MetricsTab from "./MetricsTab";
 
-// ✅ CSVUpload is now an inner component (no default export)
 function CSVUpload({ onMetricsParsed }) {
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const text = await file.text();
     const lines = text.split("\n").filter(line => line.trim() !== "");
-    if (lines.length < 2) return; // must have headers + at least one row
-
-    // First row is headers
+    if (lines.length < 2) return;
     const headers = lines[0].trim().split("\t").map(h => h.trim());
-    const dataLines = lines.slice(1); // data starts from second row
-
+    const dataLines = lines.slice(1);
     const pitchData = {};
 
     dataLines.forEach(line => {
@@ -25,7 +20,6 @@ function CSVUpload({ onMetricsParsed }) {
         acc[h] = values[i]?.trim() || "0";
         return acc;
       }, {});
-
       const pitchType = row["Pitch Type"] || "Unknown";
       if (!pitchData[pitchType]) pitchData[pitchType] = [];
       pitchData[pitchType].push(row);
@@ -37,8 +31,6 @@ function CSVUpload({ onMetricsParsed }) {
         const sum = numbers.reduce((a, b) => a + b, 0);
         return numbers.length ? sum / numbers.length : 0;
       };
-
-      // Spin Direction circular mean
       const spinRad = pitches.map(p => (parseFloat(p["Spin Direction"]) || 0) * (Math.PI / 6));
       const avgSpinDir = spinRad.length
         ? Math.atan2(
@@ -84,36 +76,58 @@ function CSVUpload({ onMetricsParsed }) {
   );
 }
 
-// ✅ Only one default export for this file
 export default function SessionModal({ playerId, session, onClose, onUpdated }) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("details");
+  const [allDrills, setAllDrills] = useState([]);
 
   const [formData, setFormData] = useState({
     session_type: "",
     date: "",
     notes: "",
-    metrics: []
+    metrics: [],
+    newDrills: [] // store drill IDs to add
   });
 
   useEffect(() => {
+    const fetchDrills = async () => {
+      const res = await api.get("/drills");
+      setAllDrills(res.data);
+    };
+
+    fetchDrills();
+
     if (session) {
       setFormData({
         session_type: session.session_type,
         date: session.date.slice(0, 10),
         notes: session.notes || "",
-        metrics: session.metrics || []
+        metrics: session.metrics || [],
+        newDrills: []
       });
     } else {
       setFormData({
         session_type: "",
         date: new Date().toISOString().slice(0, 10),
         notes: "",
-        metrics: []
+        metrics: [],
+        newDrills: []
       });
     }
     setLoading(false);
   }, [session]);
+
+  const toggleDrill = (drillId) => {
+    setFormData((prev) => {
+      const exists = prev.newDrills.includes(drillId);
+      return {
+        ...prev,
+        newDrills: exists
+          ? prev.newDrills.filter((id) => id !== drillId)
+          : [...prev.newDrills, drillId]
+      };
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -127,10 +141,16 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
     };
 
     try {
+      let savedSession;
       if (session) {
-        await api.put(`/sessions/${session.id}`, payload);
+        savedSession = await api.put(`/sessions/${session.id}`, payload);
       } else {
-        await api.post("/sessions/", { ...payload, player_id: playerId });
+        savedSession = await api.post("/sessions/", { ...payload, player_id: playerId });
+      }
+
+      // Add new drills to player
+      for (let drillId of formData.newDrills) {
+        await api.post(`/player-drills/players/${playerId}/drills/${drillId}`);
       }
 
       if (onUpdated) onUpdated();
@@ -146,11 +166,8 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
       <div className="bg-white p-6 rounded shadow w-full max-w-xl">
-        <h2 className="text-xl font-semibold mb-4">
-          {session ? "Edit Session" : "New Session"}
-        </h2>
+        <h2 className="text-xl font-semibold mb-4">{session ? "Edit Session" : "New Session"}</h2>
 
-        {/* Tabs */}
         <div className="flex border-b mb-4">
           {["details", "metrics"].map((tab) => (
             <button
@@ -158,9 +175,7 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
               type="button"
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 font-semibold capitalize ${
-                activeTab === tab
-                  ? "border-b-2 border-indigo-600 text-indigo-600"
-                  : "text-gray-500"
+                activeTab === tab ? "border-b-2 border-indigo-600 text-indigo-600" : "text-gray-500"
               }`}
             >
               {tab}
@@ -169,7 +184,6 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* DETAILS TAB */}
           {activeTab === "details" && (
             <>
               <div>
@@ -177,9 +191,7 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
                 <input
                   type="text"
                   value={formData.session_type}
-                  onChange={(e) =>
-                    setFormData({ ...formData, session_type: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, session_type: e.target.value })}
                   className="border p-2 w-full rounded"
                   required
                 />
@@ -190,9 +202,7 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
                 <input
                   type="date"
                   value={formData.date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, date: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   className="border p-2 w-full rounded"
                   required
                 />
@@ -202,9 +212,7 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
                 <label className="block font-semibold">Notes</label>
                 <textarea
                   value={formData.notes}
-                  onChange={(e) =>
-                    setFormData({ ...formData, notes: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   className="border p-2 w-full rounded"
                   rows={4}
                 />
@@ -215,10 +223,26 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
                   setFormData((prev) => ({ ...prev, metrics: parsedMetrics }))
                 }
               />
+
+              {/* New drills section */}
+              <div>
+                <label className="block font-semibold mt-4">Add Drills</label>
+                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border p-2 rounded">
+                  {allDrills.map((drill) => (
+                    <label key={drill.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.newDrills.includes(drill.id)}
+                        onChange={() => toggleDrill(drill.id)}
+                      />
+                      <span>{drill.title}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </>
           )}
 
-          {/* METRICS TAB */}
           {activeTab === "metrics" && (
             <MetricsTab
               metrics={formData.metrics}
@@ -226,19 +250,11 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
             />
           )}
 
-          {/* ACTIONS */}
           <div className="flex justify-end space-x-2 pt-2">
-            <button
-              type="button"
-              className="px-4 py-2 rounded border"
-              onClick={onClose}
-            >
+            <button type="button" className="px-4 py-2 rounded border" onClick={onClose}>
               Cancel
             </button>
-            <button
-              type="submit"
-              className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
-            >
+            <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
               Save
             </button>
           </div>
