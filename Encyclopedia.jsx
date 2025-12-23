@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { api } from "../../api";
 import Sidebar from "./Sidebar";
+// Optional: Import icons if you use a library like lucide-react or font-awesome
+// import { Book, Whistle } from "lucide-react";
 
 export default function Encyclopedia() {
-  const [concepts, setConcepts] = useState([]);
+  const [concepts, setConcepts] = useState([]); // This now contains both Concepts and Drills
   const [categories, setCategories] = useState({});
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [search, setSearch] = useState("");
@@ -14,28 +16,30 @@ export default function Encyclopedia() {
 
   const isRootPage = location.pathname === "/encyclopedia";
 
-  // Fetch concepts
+  // Fetch unified encyclopedia entries
   useEffect(() => {
     api.get("/concepts").then((res) => {
       setConcepts(res.data);
 
       const grouped = {};
-      res.data.forEach((c) => {
-        const cat = c.category || "Uncategorized";
+      res.data.forEach((item) => {
+        // Use the actual category or the fallback we defined in the backend
+        const cat = item.category || (item.type === 'drill' ? "Drills" : "Uncategorized");
         if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(c);
+        grouped[cat].push(item);
       });
 
       setCategories(grouped);
     });
   }, []);
 
-  // Filter logic
+  // Enhanced filter logic for both types
   const filteredConcepts = concepts.filter((c) => {
     const combined = `
       ${c.title || ""}
       ${c.summary || ""}
       ${c.category || ""}
+      ${c.type || ""}
       ${c.tags?.join(" ") || ""}
     `.toLowerCase();
 
@@ -44,7 +48,7 @@ export default function Encyclopedia() {
       : true;
 
     const matchesCategory = selectedCategory
-      ? (c.category || "Uncategorized") === selectedCategory
+      ? (c.category || (c.type === 'drill' ? "Drills" : "Uncategorized")) === selectedCategory
       : true;
 
     return matchesSearch && matchesCategory;
@@ -56,7 +60,8 @@ export default function Encyclopedia() {
   };
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar - Always visible or conditional based on your layout preference */}
       {isRootPage && (
         <Sidebar
           categories={categories}
@@ -66,38 +71,60 @@ export default function Encyclopedia() {
       )}
 
       <div className="flex-1 p-6 overflow-auto">
-        {/* Header */}
+        {/* Header UI */}
         {isRootPage && (
-          <div className="flex items-center gap-3 mb-4">
-            <input
-              type="text"
-              placeholder="Search concepts, tags, categories..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full max-w-md p-2 border rounded"
-            />
+          <div className="flex flex-col md:flex-row items-center gap-3 mb-6 bg-white p-4 rounded-lg shadow-sm">
+            <div className="relative flex-1 w-full max-w-md">
+               <input
+                type="text"
+                placeholder="Search articles, drills, tags..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full p-2 pl-3 border rounded shadow-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
 
             <button
               onClick={resetFilters}
-              className="bg-gray-200 text-gray-700 px-3 py-2 rounded hover:bg-gray-300"
+              className="whitespace-nowrap bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200 transition"
             >
-              Reset
+              Clear Filters
             </button>
 
-            <button
-              onClick={() => navigate("/encyclopedia/new")}
-              className="bg-blue-600 text-white px-4 py-2 rounded ml-auto"
+            <div className="flex gap-2 ml-auto">
+              <button
+              onClick={() => navigate("/drills/new")} // Updated to match App.jsx route
+              className="whitespace-nowrap bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition shadow-sm"
             >
-              + New Concept
+              + New Drill
             </button>
+              <button
+                onClick={() => navigate("/encyclopedia/new")}
+                className="whitespace-nowrap bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition shadow-sm"
+              >
+                + New Concept
+              </button>
+            </div>
           </div>
         )}
 
+        {/* This is where List.jsx or ConceptDetail.jsx will render */}
         <Outlet
           context={{
             concepts: filteredConcepts,
+            search: search
           }}
         />
+
+        {/* Empty State */}
+        {isRootPage && filteredConcepts.length === 0 && (
+          <div className="text-center py-20 text-gray-500">
+            <p className="text-xl">No results found matching your search.</p>
+            <button onClick={resetFilters} className="text-blue-600 underline mt-2">
+              View all entries
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

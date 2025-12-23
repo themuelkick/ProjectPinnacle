@@ -23,10 +23,11 @@ function App() {
 
         {/* Create routes */}
         <Route path="/players/new" element={<CreatePlayer />} />
-        <Route path="/drills/new" element={<CreateDrill />} />
 
-        {/* Drill detail */}
-        <Route path="/drills/:id" element={<DrillDetail />} />
+        {/* Note: navigate("/drills/new") in Encyclopedia.jsx
+            must match this path exactly.
+        */}
+        <Route path="/drills/new" element={<CreateDrill />} />
 
         {/* Player detail (sessions handled internally) */}
         <Route path="/players/:id" element={<PlayerDetail />} />
@@ -36,8 +37,18 @@ function App() {
           <Route index element={<ConceptList />} />
           <Route path="new" element={<ConceptForm />} />
           <Route path=":conceptId/edit" element={<ConceptForm isEdit />} />
+
+          {/* Standard Concept detail view.
+              If the item is a 'drill', your ConceptDetail component
+              should check the 'type' and render accordingly.
+          */}
           <Route path=":conceptId" element={<ConceptDetail />} />
         </Route>
+
+        {/* Global Drill detail (outside encyclopedia).
+            This is used for the assigned drills in player profiles.
+        */}
+        <Route path="/drills/:id" element={<DrillDetail />} />
       </Routes>
     </div>
   );
