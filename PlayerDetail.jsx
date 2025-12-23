@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import { api } from "../api";
 import SessionTimeline from "./Session/components/SessionTimeline";
@@ -6,7 +6,7 @@ import SessionModal from "./Session/components/SessionModal";
 
 export default function PlayerDetail() {
   const { id: playerId } = useParams();
-
+  const navigate = useNavigate();
   const [player, setPlayer] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [modalSession, setModalSession] = useState(null);
@@ -174,17 +174,18 @@ export default function PlayerDetail() {
     );
   };
 
-  if (!player) return <div className="p-8 text-center animate-pulse">Loading Player Profile...</div>;
+  if (!player) return <div className="p-8 text-center animate-pulse text-white font-bold">Loading Player Profile...</div>;
 
   return (
     <div className="p-8 space-y-6 max-w-5xl mx-auto">
-      {/* Header Section */}
+
+      {/* Header Section - Back Button Removed to prioritize Navbar */}
       <div className="flex justify-between items-start bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         <div>
           <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tight">
             {player.first_name} {player.last_name}
           </h1>
-          <div className="flex gap-4 mt-2 text-sm font-bold text-indigo-600">
+          <div className="flex gap-4 mt-1 text-sm font-bold text-indigo-600">
             <span>{player.position || "N/A"}</span>
             <span className="text-gray-300">|</span>
             <span>{player.team || "No Team"}</span>
@@ -206,14 +207,14 @@ export default function PlayerDetail() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200">
+      {/* Tabs - Updated styling to look better over background */}
+      <div className="flex border-b border-white/20">
         {["profile", "analytics"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-8 py-3 font-bold capitalize transition-all ${
-              activeTab === tab ? "border-b-4 border-indigo-600 text-indigo-600" : "text-gray-400 hover:text-gray-600"
+              activeTab === tab ? "border-b-4 border-white text-white" : "text-white/50 hover:text-white"
             }`}
           >
             {tab}
@@ -256,7 +257,7 @@ export default function PlayerDetail() {
             </div>
 
             {/* Notes Section */}
-            <div className={`p-5 rounded-xl border transition-all ${isEditing ? 'bg-white border-indigo-200 ring-2 ring-indigo-50' : 'bg-amber-50 border-amber-100'}`}>
+            <div className={`p-5 rounded-xl border transition-all ${isEditing ? 'bg-white border-indigo-200 ring-2 ring-indigo-50' : 'bg-amber-50 border-amber-100 shadow-sm'}`}>
               <div className="flex justify-between items-center mb-3">
                 <h2 className={`text-xs font-black uppercase tracking-widest ${isEditing ? 'text-indigo-600' : 'text-amber-600'}`}>
                   Scouting Notes
@@ -385,8 +386,8 @@ export default function PlayerDetail() {
                 );
               })
             ) : (
-              <div className="py-20 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-                <p className="text-gray-400 font-medium italic">No sessions match your selection.</p>
+              <div className="py-20 text-center bg-white/20 backdrop-blur-sm rounded-2xl border-2 border-dashed border-white/30">
+                <p className="text-white font-medium italic">No sessions match your selection.</p>
               </div>
             )}
           </div>

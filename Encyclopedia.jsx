@@ -2,11 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { api } from "../../api";
 import Sidebar from "./Sidebar";
-// Optional: Import icons if you use a library like lucide-react or font-awesome
-// import { Book, Whistle } from "lucide-react";
 
 export default function Encyclopedia() {
-  const [concepts, setConcepts] = useState([]); // This now contains both Concepts and Drills
+  const [concepts, setConcepts] = useState([]);
   const [categories, setCategories] = useState({});
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [search, setSearch] = useState("");
@@ -23,7 +21,6 @@ export default function Encyclopedia() {
 
       const grouped = {};
       res.data.forEach((item) => {
-        // Use the actual category or the fallback we defined in the backend
         const cat = item.category || (item.type === 'drill' ? "Drills" : "Uncategorized");
         if (!grouped[cat]) grouped[cat] = [];
         grouped[cat].push(item);
@@ -33,7 +30,7 @@ export default function Encyclopedia() {
     });
   }, []);
 
-  // Enhanced filter logic for both types
+  // Filter logic
   const filteredConcepts = concepts.filter((c) => {
     const combined = `
       ${c.title || ""}
@@ -43,10 +40,7 @@ export default function Encyclopedia() {
       ${c.tags?.join(" ") || ""}
     `.toLowerCase();
 
-    const matchesSearch = search
-      ? combined.includes(search.toLowerCase())
-      : true;
-
+    const matchesSearch = search ? combined.includes(search.toLowerCase()) : true;
     const matchesCategory = selectedCategory
       ? (c.category || (c.type === 'drill' ? "Drills" : "Uncategorized")) === selectedCategory
       : true;
@@ -61,7 +55,7 @@ export default function Encyclopedia() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar - Always visible or conditional based on your layout preference */}
+      {/* Sidebar */}
       {isRootPage && (
         <Sidebar
           categories={categories}
@@ -71,11 +65,11 @@ export default function Encyclopedia() {
       )}
 
       <div className="flex-1 p-6 overflow-auto">
-        {/* Header UI */}
+        {/* Header - Search and Actions */}
         {isRootPage && (
-          <div className="flex flex-col md:flex-row items-center gap-3 mb-6 bg-white p-4 rounded-lg shadow-sm">
+          <div className="flex flex-col md:flex-row items-center gap-3 bg-white p-4 rounded-lg shadow-sm mb-6">
             <div className="relative flex-1 w-full max-w-md">
-               <input
+              <input
                 type="text"
                 placeholder="Search articles, drills, tags..."
                 value={search}
@@ -86,21 +80,21 @@ export default function Encyclopedia() {
 
             <button
               onClick={resetFilters}
-              className="whitespace-nowrap bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200 transition"
+              className="whitespace-nowrap bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200 transition font-bold"
             >
               Clear Filters
             </button>
 
             <div className="flex gap-2 ml-auto">
               <button
-              onClick={() => navigate("/drills/new")} // Updated to match App.jsx route
-              className="whitespace-nowrap bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition shadow-sm"
-            >
-              + New Drill
-            </button>
+                onClick={() => navigate("/drills/new")}
+                className="whitespace-nowrap bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition shadow-sm font-bold"
+              >
+                + New Drill
+              </button>
               <button
                 onClick={() => navigate("/encyclopedia/new")}
-                className="whitespace-nowrap bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition shadow-sm"
+                className="whitespace-nowrap bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition shadow-sm font-bold"
               >
                 + New Concept
               </button>
@@ -109,12 +103,14 @@ export default function Encyclopedia() {
         )}
 
         {/* This is where List.jsx or ConceptDetail.jsx will render */}
-        <Outlet
-          context={{
-            concepts: filteredConcepts,
-            search: search
-          }}
-        />
+        <div className="animate-in fade-in duration-300">
+          <Outlet
+            context={{
+              concepts: filteredConcepts,
+              search: search
+            }}
+          />
+        </div>
 
         {/* Empty State */}
         {isRootPage && filteredConcepts.length === 0 && (

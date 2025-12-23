@@ -4,7 +4,7 @@ import PlayerDetail from "./pages/PlayerDetail";
 import DrillDetail from "./pages/DrillDetail";
 import CreatePlayer from "./pages/CreatePlayer";
 import CreateDrill from "./pages/CreateDrill";
-
+import Navbar from "./components/navbar/navbar";
 // Encyclopedia imports
 import Encyclopedia from "./pages/Encyclopedia/Encyclopedia";
 import ConceptList from "./pages/Encyclopedia/ConceptList";
@@ -17,6 +17,7 @@ function App() {
       className="min-h-screen bg-cover bg-center bg-fixed"
       style={{ backgroundImage: "url('/ibg.jpg')" }}
     >
+      <Navbar />
       <Routes>
         {/* Dashboard */}
         <Route path="/" element={<Dashboard />} />
