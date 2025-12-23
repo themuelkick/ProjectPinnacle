@@ -1,8 +1,8 @@
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;       /* Changed from max-width 1280px */
+  margin: 0;         /* Changed from 0 auto */
+  padding: 0;        /* Removed padding to let background fill edges */
+  text-align: left;  /* Dashboard usually looks better left-aligned */
 }
 
 .logo {
