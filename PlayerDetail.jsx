@@ -334,7 +334,7 @@ export default function PlayerDetail() {
             </div>
 
             <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Training History</h2>
+              <h2 className="text-lg font-bold text-gray-800 mb-4">History</h2>
               <SessionTimeline sessions={sessions} onSelect={setModalSession} onDelete={handleDeleteSession} />
             </div>
           </div>

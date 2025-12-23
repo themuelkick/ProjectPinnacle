@@ -1,59 +1,67 @@
 export default function SessionTimeline({ sessions, onSelect, onDelete }) {
   if (!sessions || sessions.length === 0) {
-    return <p>No sessions yet.</p>;
+    return <p className="text-gray-500 italic">No sessions yet.</p>;
   }
 
   return (
     <div className="space-y-4">
       {sessions.map((session) => {
-        const hasMetrics =
-          session.metrics &&
-          session.metrics.some(group => group.metrics && group.metrics.length > 0);
+        // Calculate total unique metrics across all groups
+        const totalMetricsCount = session.metrics?.reduce(
+          (sum, group) => sum + (group.metrics?.length || 0),
+          0
+        ) || 0;
+
+        const hasMetrics = totalMetricsCount > 0;
+
+        // Get unique source names
+        const uniqueSources = Array.from(
+          new Set(session.metrics?.map((group) => group.source?.toLowerCase()))
+        ).filter(Boolean);
 
         return (
           <div
             key={session.id}
-            className="border rounded p-4 hover:bg-gray-50 cursor-pointer"
+            className="border border-gray-100 rounded-xl p-4 hover:bg-gray-50 transition-colors cursor-pointer group"
           >
             <div className="flex justify-between items-center">
-              <div onClick={() => onSelect(session)}>
-                <p className="font-semibold">
+              <div className="flex-1" onClick={() => onSelect(session)}>
+                <p className="font-bold text-gray-900">
                   {new Date(session.date).toLocaleDateString()} — {session.session_type}
                 </p>
 
-                {hasMetrics ? (
-                  <p className="text-sm text-green-600">
-                    Metrics recorded
-                  </p>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    No metrics recorded yet.
-                  </p>
-                )}
+                <div className="flex items-center gap-2 mt-1">
+                  {hasMetrics ? (
+                    <>
+                      <span className="text-xs font-bold text-green-600 uppercase tracking-tight">
+                        Metrics recorded
+                      </span>
+                      <span className="text-gray-300">•</span>
+                      {/* Only show unique sources here */}
+                      {uniqueSources.map((source) => (
+                        <span key={source} className="text-xs text-gray-500 font-medium capitalize">
+                          {source}: {totalMetricsCount} total
+                        </span>
+                      ))}
+                    </>
+                  ) : (
+                    <span className="text-xs text-gray-400">
+                      No metrics recorded yet.
+                    </span>
+                  )}
+                </div>
               </div>
 
               <button
-                className="text-red-600 text-sm"
+                className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 text-xs font-bold transition-all px-2 py-1"
                 onClick={(e) => {
                   e.stopPropagation();
                   onDelete(session.id);
                 }}
               >
-                Delete
+                DELETE
               </button>
             </div>
-
-            {/* Optional quick preview */}
-            {hasMetrics && (
-              <div className="mt-2 text-sm text-gray-700">
-                {session.metrics.map((group, i) => (
-                  <div key={i}>
-                    <strong className="capitalize">{group.source}</strong>:{" "}
-                    {group.metrics.length} metrics
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         );
       })}
