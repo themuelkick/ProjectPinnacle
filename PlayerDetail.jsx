@@ -38,7 +38,6 @@ export default function PlayerDetail() {
 
   const handleSaveProfile = async () => {
     try {
-      // Determine if notes were updated to set the timestamp
       const updatedNotesTimestamp = editForm.notes !== player.notes
         ? new Date().toISOString()
         : player.notes_updated_at;
@@ -54,6 +53,29 @@ export default function PlayerDetail() {
     } catch (err) {
       console.error("Failed to save profile", err);
       alert("Error saving profile changes.");
+    }
+  };
+
+  // NEW: Delete Player Logic
+  const handleDeletePlayer = async () => {
+    const confirmFirst = window.confirm(
+      `Are you sure you want to delete ${player.first_name} ${player.last_name}? This will remove all their data and history.`
+    );
+
+    if (confirmFirst) {
+      const confirmSecond = window.confirm(
+        "FINAL WARNING: This action is permanent. Do you wish to proceed with the deletion?"
+      );
+
+      if (confirmSecond) {
+        try {
+          await api.delete(`/players/${playerId}`);
+          navigate("/"); // Redirect to Dashboard
+        } catch (err) {
+          console.error("Failed to delete player", err);
+          alert("Error deleting player. Please try again.");
+        }
+      }
     }
   };
 
@@ -179,7 +201,7 @@ export default function PlayerDetail() {
   return (
     <div className="p-8 space-y-6 max-w-5xl mx-auto">
 
-      {/* Header Section - Back Button Removed to prioritize Navbar */}
+      {/* Header Section */}
       <div className="flex justify-between items-start bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         <div>
           <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tight">
@@ -191,15 +213,27 @@ export default function PlayerDetail() {
             <span>{player.team || "No Team"}</span>
           </div>
         </div>
+
         <div className="flex gap-3">
+          {/* Action: Delete Profile */}
+          <button
+            onClick={handleDeletePlayer}
+            className="border border-red-500/50 text-red-500 px-4 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all active:scale-95"
+          >
+            Delete Profile
+          </button>
+
+          {/* Action: Edit Profile */}
           <button
             onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
             className={`${isEditing ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-800 hover:bg-gray-900'} text-white px-5 py-2.5 rounded-lg font-bold transition-all shadow-lg active:scale-95 text-sm`}
           >
             {isEditing ? "✓ Save Changes" : "✎ Edit Profile"}
           </button>
+
+          {/* Action: New Session */}
           <button
-            className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95"
+            className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95 text-sm"
             onClick={() => setModalSession({})}
           >
             + New Session
@@ -207,7 +241,7 @@ export default function PlayerDetail() {
         </div>
       </div>
 
-      {/* Tabs - Updated styling to look better over background */}
+      {/* Tabs */}
       <div className="flex border-b border-white/20">
         {["profile", "analytics"].map((tab) => (
           <button

@@ -14,6 +14,7 @@ from app.schemas.player import PlayerCreate, PlayerRead, PlayerUpdate
 
 router = APIRouter(prefix="/players", tags=["players"])
 
+
 # -------------------------------
 # Helper: Attach Drills to Player
 # -------------------------------
@@ -134,3 +135,33 @@ def update_player(player_id: str, player_data: PlayerUpdate, db: Session = Depen
 
     # Return the updated player with drills attached for the UI
     return _attach_drills(db_player, db)
+
+
+# -------------------------------
+# Delete Player
+# -------------------------------
+@router.delete("/{player_id}")
+def delete_player(player_id: str, db: Session = Depends(get_db)):
+    """
+    Deletes a player and all associated data (History, Sessions, Drills).
+    """
+    db_player = db.query(Player).filter(Player.id == player_id).first()
+
+    if not db_player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    try:
+        # 1. Delete associated data to prevent foreign key errors
+        db.query(PlayerHistory).filter(PlayerHistory.player_id == player_id).delete()
+        db.query(PlayerDrill).filter(PlayerDrill.player_id == player_id).delete()
+        db.query(BaseballSession).filter(BaseballSession.player_id == player_id).delete()
+
+        # 2. Delete the player
+        db.delete(db_player)
+
+        db.commit()
+        return {"message": "Successfully deleted player and all related data"}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting player: {str(e)}")
