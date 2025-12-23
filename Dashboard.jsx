@@ -7,8 +7,41 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    api.get("/players").then((res) => setPlayers(res.data));
+    fetchPlayers();
   }, []);
+
+  const fetchPlayers = () => {
+    api.get("/players").then((res) => setPlayers(res.data));
+  };
+
+  const handleDelete = async (e, id, name) => {
+    // 1. Stop the click from navigating to the Player Detail page
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 2. First confirmation
+    const confirmFirst = window.confirm(
+      `Are you sure you want to delete ${name}? This will remove all their sessions and data.`
+    );
+
+    if (confirmFirst) {
+      // 3. Second confirmation (The "Double Check")
+      const confirmSecond = window.confirm(
+        "FINAL WARNING: This action is permanent and cannot be undone. Proceed?"
+      );
+
+      if (confirmSecond) {
+        try {
+          await api.delete(`/players/${id}`);
+          // 4. Update local state so the card disappears immediately
+          setPlayers(players.filter(p => p.id !== id));
+        } catch (err) {
+          console.error("Failed to delete player", err);
+          alert("Error deleting player. Please try again.");
+        }
+      }
+    }
+  };
 
   const filteredPlayers = players.filter((p) =>
     `${p.first_name} ${p.last_name}`.toLowerCase().includes(search.toLowerCase())
@@ -37,9 +70,6 @@ export default function Dashboard() {
             onChange={(e) => setSearch(e.target.value)}
             className="relative w-full bg-gray-900/40 border border-white/10 rounded-2xl px-6 py-4 text-white placeholder-white/30 backdrop-blur-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-2xl text-lg"
           />
-          <div className="absolute right-5 top-1/2 -translate-y-1/2 text-white/20 font-black tracking-widest text-xs uppercase">
-            {filteredPlayers.length} Active
-          </div>
         </div>
       </div>
 
@@ -48,12 +78,8 @@ export default function Dashboard() {
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <h2 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-3">
             Active Roster
-            <span className="text-blue-500 text-sm italic">[{players.length}]</span>
+            <span className="text-blue-500 text-sm italic">[{filteredPlayers.length}]</span>
           </h2>
-          <div className="flex gap-2">
-            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-            <span className="text-[10px] text-white/40 font-bold uppercase tracking-widest">System Online</span>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -63,13 +89,22 @@ export default function Dashboard() {
               to={`/players/${p.id}`}
               className="group relative bg-white/[0.03] border border-white/10 rounded-2xl p-6 transition-all hover:bg-white/[0.08] hover:border-blue-500/50 hover:-translate-y-1 shadow-xl overflow-hidden"
             >
-              {/* Background Accent */}
-              <div className="absolute -right-4 -top-4 text-white/[0.02] font-black text-6xl italic group-hover:text-blue-500/10 transition-colors">
+              {/* Double-Confirmation Delete Button */}
+              <button
+                onClick={(e) => handleDelete(e, p.id, `${p.first_name} ${p.last_name}`)}
+                className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 p-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-all"
+                title="Delete Profile"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+
+              <div className="absolute -right-4 -top-4 text-white/[0.02] font-black text-6xl italic">
                 {p.position || "P"}
               </div>
 
               <div className="flex items-center gap-5 relative z-10">
-                {/* Initial Avatar */}
                 <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-xl font-black text-white shadow-lg group-hover:scale-110 transition-transform">
                   {p.first_name[0]}{p.last_name[0]}
                 </div>
@@ -90,7 +125,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Card Footer */}
               <div className="mt-6 flex justify-between items-center border-t border-white/5 pt-4">
                 <span className="text-[10px] font-black text-white/20 uppercase tracking-widest group-hover:text-white/40 transition-colors">
                   View Analytics Profile
@@ -102,17 +136,6 @@ export default function Dashboard() {
             </Link>
           ))}
         </div>
-
-        {/* Empty States */}
-        {players.length === 0 ? (
-          <div className="text-center py-20 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl">
-            <p className="text-white/40 font-bold italic">Initialize roster by adding your first player.</p>
-          </div>
-        ) : filteredPlayers.length === 0 && (
-          <div className="text-center py-20">
-            <p className="text-white/40 font-bold italic text-lg">No matches found for "{search}"</p>
-          </div>
-        )}
       </section>
     </div>
   );
