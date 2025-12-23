@@ -85,20 +85,6 @@ export default function Encyclopedia() {
               Clear Filters
             </button>
 
-            <div className="flex gap-2 ml-auto">
-              <button
-                onClick={() => navigate("/drills/new")}
-                className="whitespace-nowrap bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition shadow-sm font-bold"
-              >
-                + New Drill
-              </button>
-              <button
-                onClick={() => navigate("/encyclopedia/new")}
-                className="whitespace-nowrap bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition shadow-sm font-bold"
-              >
-                + New Concept
-              </button>
-            </div>
           </div>
         )}
 
