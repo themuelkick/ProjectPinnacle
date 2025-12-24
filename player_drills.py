@@ -6,7 +6,7 @@ from app.db import get_db
 from app.models.player import Player
 from app.models.drill import Drill
 from app.models.player_drill import PlayerDrill
-
+from app.models.concept import Concept # Add this import at the top
 router = APIRouter(prefix="/player-drills", tags=["player-drills"])
 
 
@@ -15,20 +15,22 @@ router = APIRouter(prefix="/player-drills", tags=["player-drills"])
 # -------------------------------
 @router.post("/players/{player_id}/drills/{drill_id}")
 def add_drill_to_player(
-    player_id: str,
-    drill_id: str,
-    session_date: str = Query(
-        None, description="Optional ISO date if assigning via session"
-    ),
-    db: Session = Depends(get_db),
+        player_id: str,
+        drill_id: str,
+        session_date: str = Query(None),
+        db: Session = Depends(get_db),
 ):
     player = db.query(Player).get(player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
 
+    # FIX: Check legacy Drills table first, then check Concepts table
     drill = db.query(Drill).get(drill_id)
     if not drill:
-        raise HTTPException(status_code=404, detail="Drill not found")
+        drill = db.query(Concept).get(drill_id)
+
+    if not drill:
+        raise HTTPException(status_code=404, detail="Drill/Concept not found")
 
     # Prevent duplicate assignments
     existing = (
@@ -39,7 +41,6 @@ def add_drill_to_player(
     if existing:
         return {"message": "Drill already assigned"}
 
-    # Parse session date safely
     assigned_date = (
         datetime.fromisoformat(session_date)
         if session_date
@@ -48,7 +49,7 @@ def add_drill_to_player(
 
     new_pd = PlayerDrill(
         player_id=player_id,
-        drill_id=drill_id,
+        drill_id=drill_id,  # This works because both use UUIDs
         date_performed=assigned_date,
     )
 

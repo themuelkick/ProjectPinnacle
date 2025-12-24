@@ -119,12 +119,24 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
   });
 
   useEffect(() => {
-    const fetchDrills = async () => {
-      const res = await api.get("/drills");
-      setAllDrills(res.data);
-    };
+  const fetchDrills = async () => {
+    try {
+      // Fetch from the unified concepts endpoint
+      const res = await api.get("/concepts");
 
-    fetchDrills();
+      // Filter for items that are in the "Drills" root or sub-folders
+      // This ensures "Drills", "Drills/Power", and "Drills/Mobility" all show up
+      const drillItems = res.data.filter(item =>
+        item.category?.startsWith("Drills") || item.type === "drill"
+      );
+
+      setAllDrills(drillItems);
+    } catch (err) {
+      console.error("Error loading drills for session:", err);
+    }
+  };
+
+  fetchDrills();
 
     if (session) {
       setFormData({
@@ -147,14 +159,21 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
   }, [session]);
 
   const filteredDrills = useMemo(() => {
-    const term = drillSearch.toLowerCase();
-    if (!term) return allDrills;
-    return allDrills.filter(drill => {
-      const matchesTitle = drill.title.toLowerCase().includes(term);
-      const matchesTags = drill.tags?.some(tag => tag.name.toLowerCase().includes(term));
-      return matchesTitle || matchesTags;
-    });
-  }, [allDrills, drillSearch]);
+      const term = drillSearch.toLowerCase();
+      if (!term) return allDrills;
+      return allDrills.filter(drill => {
+        // Safely check title
+        const matchesTitle = drill.title?.toLowerCase().includes(term);
+
+        // Safely check tags (handles both "tag" and {name: "tag"})
+        const matchesTags = drill.tags?.some(tag => {
+          const tagName = typeof tag === 'string' ? tag : tag.name;
+          return tagName?.toLowerCase().includes(term);
+        });
+
+        return matchesTitle || matchesTags;
+      });
+    }, [allDrills, drillSearch]);
 
   const toggleDrill = (drillId) => {
     setFormData((prev) => {
@@ -295,8 +314,10 @@ export default function SessionModal({ playerId, session, onClose, onUpdated }) 
                       <div className="flex flex-col">
                         <span className="text-sm font-bold text-gray-800">{drill.title}</span>
                         <div className="flex gap-1 mt-1">
-                          {drill.tags?.map(t => (
-                            <span key={t.id} className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-black uppercase">{t.name}</span>
+                          {drill.tags?.map((t, idx) => (
+                            <span key={idx} className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-black uppercase">
+                              {typeof t === 'string' ? t : t.name}
+                            </span>
                           ))}
                         </div>
                       </div>

@@ -11,6 +11,7 @@ from app.models.player_drill import PlayerDrill
 # Import Session model to look up metadata
 from app.models.session import Session as BaseballSession
 from app.schemas.player import PlayerCreate, PlayerRead, PlayerUpdate
+from app.models.concept import Concept
 
 router = APIRouter(prefix="/players", tags=["players"])
 
@@ -31,9 +32,14 @@ def _attach_drills(player: Player, db: Session):
 
     drills_with_info = []
     for pd in player_drills:
+        # 2. CHECK BOTH TABLES: Try legacy Drill first, then Concept fallback
         drill = db.query(Drill).get(pd.drill_id)
+        if not drill:
+            drill = db.query(Concept).get(pd.drill_id)
+
         if drill:
             session_origin = None
+            # Handle the session link if it exists on the bridge table
             if hasattr(pd, "session_id") and pd.session_id:
                 sess = db.query(BaseballSession).get(pd.session_id)
                 if sess:
@@ -44,13 +50,14 @@ def _attach_drills(player: Player, db: Session):
 
             drills_with_info.append(
                 {
-                    "id": drill.id,
+                    "id": pd.drill_id,
                     "title": drill.title,
                     "assigned_date": pd.date_performed,
                     "session_origin": session_origin
                 }
             )
 
+    # Attach to the object before it hits the Pydantic response model
     setattr(player, "drills", drills_with_info)
     return player
 
