@@ -295,7 +295,7 @@ def search_encyclopedia(
     q_c = db.query(Concept).filter(
         (Concept.title.ilike(search_term)) | (Concept.body.ilike(search_term))
     )
-    if category: q_c = q_c.filter(Concept.category == category)
+    if category: q_c = q_c.filter(Concept.category.like(f"{category}%"))
 
     for c in q_c.all():
         media_list = json.loads(c.media_files) if c.media_files else []

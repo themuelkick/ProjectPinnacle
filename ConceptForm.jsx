@@ -16,6 +16,7 @@ export default function ConceptForm({ isEdit = false }) {
   const [newTag, setNewTag] = useState("");
   const [mediaFiles, setMediaFiles] = useState([]);
   const [history, setHistory] = useState([]);
+  const [existingCategories, setExistingCategories] = useState([]);
 
   // Update Logic State
   const [currentAddition, setCurrentAddition] = useState("");
@@ -41,6 +42,15 @@ export default function ConceptForm({ isEdit = false }) {
         // 2. Fetch all available tags from the unified concepts route
         const tagsRes = await api.get("/concepts/tags");
         setAllTags(tagsRes.data.map((t) => (typeof t === 'string' ? t : t.name)));
+
+        // 3. NEW: Fetch all concepts to extract existing category paths for the datalist
+        const conceptsRes = await api.get("/concepts");
+        // We use a Set to ensure the list only contains unique folder paths
+        const uniqueCats = [
+          ...new Set(conceptsRes.data.map((item) => item.category).filter(Boolean))
+        ];
+        setExistingCategories(uniqueCats);
+
       } catch (err) {
         console.error("Initialization Error:", err);
       } finally {
@@ -206,38 +216,54 @@ export default function ConceptForm({ isEdit = false }) {
         </div>
 
         {/* Category & Tags */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-blue-600 ml-1">Category</label>
-            <input
-              type="text"
-              placeholder="e.g., Biomechanics"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
-            />
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-blue-600 ml-1">
+                  Category / Path
+                </label>
+                <input
+                  type="text"
+                  list="category-list" // This links the input to the datalist below
+                  placeholder="e.g., Drills/Weighted Ball"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-gray-700"
+                />
 
-          <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-widest text-blue-600">Active Tags</label>
-            <div className="flex flex-wrap gap-2">
-              {allTags.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => toggleTag(t)}
-                  className={`px-3 py-1 rounded-full text-[10px] font-black uppercase transition-all ${
-                    tags.includes(t)
-                      ? "bg-blue-600 text-white shadow-md scale-105"
-                      : "bg-gray-100 text-gray-400 hover:bg-gray-200"
-                  }`}
-                >
-                  #{t}
-                </button>
-              ))}
+                {/* This provides the dropdown suggestions for existing folder paths */}
+                <datalist id="category-list">
+                  {existingCategories.map((cat, idx) => (
+                    <option key={idx} value={cat} />
+                  ))}
+                </datalist>
+
+                <p className="text-[9px] text-gray-400 mt-1 italic font-bold uppercase tracking-tight ml-1">
+                  * Use "/" for folders (e.g. Drills/Waterbag)
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black uppercase tracking-widest text-blue-600">
+                  Active Tags
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {allTags.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => toggleTag(t)}
+                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase transition-all ${
+                        tags.includes(t)
+                          ? "bg-blue-600 text-white shadow-md scale-105"
+                          : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                      }`}
+                    >
+                      #{t}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
         {/* Media Upload */}
         <div className="space-y-4 border-t border-gray-100 pt-6">

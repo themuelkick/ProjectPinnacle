@@ -3,6 +3,37 @@ import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { api } from "../../api";
 import Sidebar from "./Sidebar";
 
+/**
+ * Transforms a flat list of concepts/drills into a nested tree structure
+ * based on the "Category/Subcategory" string convention.
+ */
+const buildTree = (data) => {
+  const tree = {};
+
+  data.forEach((item) => {
+    // Default fallback if category is missing
+    const path = item.category || (item.type === 'drill' ? "Drills" : "Uncategorized");
+    const parts = path.split("/");
+
+    let currentLevel = tree;
+
+    parts.forEach((part, index) => {
+      if (!currentLevel[part]) {
+        currentLevel[part] = { _items: [], _isCategory: true };
+      }
+
+      // If we've reached the specific leaf category for this item
+      if (index === parts.length - 1) {
+        currentLevel[part]._items.push(item);
+      }
+
+      currentLevel = currentLevel[part];
+    });
+  });
+
+  return tree;
+};
+
 export default function Encyclopedia() {
   const [concepts, setConcepts] = useState([]);
   const [categories, setCategories] = useState({});
@@ -18,15 +49,9 @@ export default function Encyclopedia() {
   useEffect(() => {
     api.get("/concepts").then((res) => {
       setConcepts(res.data);
-
-      const grouped = {};
-      res.data.forEach((item) => {
-        const cat = item.category || (item.type === 'drill' ? "Drills" : "Uncategorized");
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(item);
-      });
-
-      setCategories(grouped);
+      // Transform the flat array into a nested tree for the Sidebar
+      const tree = buildTree(res.data);
+      setCategories(tree);
     });
   }, []);
 
@@ -41,8 +66,13 @@ export default function Encyclopedia() {
     `.toLowerCase();
 
     const matchesSearch = search ? combined.includes(search.toLowerCase()) : true;
+
+    // Logic: If "Drills" is selected, we want to show items in "Drills",
+    // "Drills/Weighted Ball", and "Drills/Waterbag".
+    const currentCategoryPath = c.category || (c.type === 'drill' ? "Drills" : "Uncategorized");
+
     const matchesCategory = selectedCategory
-      ? (c.category || (c.type === 'drill' ? "Drills" : "Uncategorized")) === selectedCategory
+      ? currentCategoryPath === selectedCategory || currentCategoryPath.startsWith(`${selectedCategory}/`)
       : true;
 
     return matchesSearch && matchesCategory;
@@ -55,7 +85,7 @@ export default function Encyclopedia() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
+      {/* Sidebar - Now receives the nested tree structure */}
       {isRootPage && (
         <Sidebar
           categories={categories}
@@ -84,11 +114,10 @@ export default function Encyclopedia() {
             >
               Clear Filters
             </button>
-
           </div>
         )}
 
-        {/* This is where List.jsx or ConceptDetail.jsx will render */}
+        {/* Content Panel */}
         <div className="animate-in fade-in duration-300">
           <Outlet
             context={{
@@ -101,7 +130,7 @@ export default function Encyclopedia() {
         {/* Empty State */}
         {isRootPage && filteredConcepts.length === 0 && (
           <div className="text-center py-20 text-gray-500">
-            <p className="text-xl">No results found matching your search.</p>
+            <p className="text-xl">No results found matching your selection.</p>
             <button onClick={resetFilters} className="text-blue-600 underline mt-2">
               View all entries
             </button>
