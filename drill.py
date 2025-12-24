@@ -1,55 +1,77 @@
-from typing import List, Optional
-from pydantic import BaseModel, ConfigDict
-from app.schemas.tag import TagRead
+import uuid
+import json
+from sqlalchemy import Column, String, Text
+from sqlalchemy.orm import relationship
+from app.db import Base
 
+# Imports for relationships
+from app.models.player_drill import PlayerDrill
+from app.models.tag import Tag
 
-# ---------------------------------------------------------
-# Drill Schemas
-# ---------------------------------------------------------
+class Drill(Base):
+    __tablename__ = "drills"
 
-class DrillBase(BaseModel):
-    """
-    Shared attributes for Drills across Create and Read operations.
-    """
-    title: str
-    description: Optional[str] = None
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=True)
 
-    # Legacy support: keep this so existing player/session logic doesn't break
-    video_url: Optional[str] = None
+    # --- New Encyclopedia Integration Fields ---
+    category = Column(String, nullable=True)  # e.g., Hitting, Pitching, S&C
+    media_files = Column(Text, default="[]")  # Stores list of URLs/Paths as JSON string
+    history = Column(Text, default="[]")      # Stores the evolution timeline as JSON string
 
-    # New Encyclopedia Integration Fields
-    category: Optional[str] = None  # Hitting, Pitching, etc.
-    media_files: List[str] = []  # Stores multiple YouTube links or upload paths
+    # Keep video_url for backward compatibility with your existing session logic
+    video_url = Column(String, nullable=True)
 
+    # Relationships
+    player_drills = relationship(
+        "PlayerDrill",
+        back_populates="drill",
+        cascade="all, delete-orphan"
+    )
 
-class DrillCreate(DrillBase):
-    """
-    Schema for creating a new drill.
-    Accepts a list of tag names which the router will resolve to Tag models.
-    """
-    tag_names: Optional[List[str]] = []
+    tags = relationship(
+        "Tag",
+        secondary="drill_tags",
+        back_populates="drills"
+    )
 
+    # --- Helper Properties for JSON Fields ---
 
-class DrillUpdate(BaseModel):
-    """
-    Schema for updating an existing drill.
-    All fields are optional to allow partial updates.
-    """
-    title: Optional[str] = None
-    description: Optional[str] = None
-    video_url: Optional[str] = None
-    category: Optional[str] = None
-    media_files: Optional[List[str]] = None
-    tag_names: Optional[List[str]] = None
+    @property
+    def media_files_list(self):
+        """Returns the media_files as a Python list."""
+        try:
+            return json.loads(self.media_files) if self.media_files else []
+        except (json.JSONDecodeError, TypeError):
+            return []
 
+    @media_files_list.setter
+    def media_files_list(self, value):
+        """Allows direct assignment: drill.media_files_list = ['url1', 'url2']"""
+        self.media_files = json.dumps(value if value is not None else [])
 
-class DrillRead(DrillBase):
-    """
-    Schema for returning Drill data to the frontend.
-    Includes the ID and the list of associated Tags.
-    """
-    id: str
-    # This nested list allows the frontend to search and filter by tag name
-    tags: List[TagRead] = []
+    @property
+    def history_list(self):
+        """Returns the evolution history as a Python list of dicts."""
+        try:
+            return json.loads(self.history) if self.history else []
+        except (json.JSONDecodeError, TypeError):
+            return []
 
-    model_config = ConfigDict(from_attributes=True)
+    @history_list.setter
+    def history_list(self, value):
+        """Allows direct assignment: drill.history_list = [{'date': '...', 'addition': '...'}]"""
+        self.history = json.dumps(value if value is not None else [])
+
+    @property
+    def all_media(self):
+        """
+        Combines the legacy video_url and the new media_files list.
+        Read-only helper for the Encyclopedia router.
+        """
+        files = self.media_files_list
+        # If there's a legacy URL not present in the new list, include it
+        if self.video_url and self.video_url not in files:
+            files.append(self.video_url)
+        return files
