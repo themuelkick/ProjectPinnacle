@@ -6,7 +6,9 @@
     "tailwindcss": "^4.1.18"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.89.0",
     "axios": "^1.13.2",
+    "papaparse": "^5.5.3",
     "react-router-dom": "^7.10.1"
   }
 }
