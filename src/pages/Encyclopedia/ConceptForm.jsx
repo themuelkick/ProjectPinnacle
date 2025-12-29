@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../../api";
+import { supabase } from "../../supabaseClient"; // NEW
+import { useAuth } from "../../context/AuthContext"; // NEW
 
 export default function ConceptForm({ isEdit = false }) {
   const { conceptId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Form State
   const [title, setTitle] = useState("");
@@ -34,38 +36,39 @@ export default function ConceptForm({ isEdit = false }) {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // 1. Fetch existing concept/drill if in edit mode
         if (isEdit && conceptId) {
-          const res = await api.get(`/concepts/${conceptId}`);
-          const c = res.data;
-          setTitle(c.title || "");
-          setSummary(c.summary || "");
-          setBody(c.body || c.description || "");
-          setCategory(c.category || "");
-          setTags(c.tags || []);
-          setMediaFiles(c.media_files || []);
-          setHistory(c.history || []);
+          const { data: c, error } = await supabase
+            .from("concepts")
+            .select("*")
+            .eq("id", conceptId)
+            .single();
+
+          if (c) {
+            setTitle(c.title || "");
+            setSummary(c.summary || "");
+            setBody(c.content || ""); // Supabase uses 'content' column
+            setCategory(c.category || "");
+            setTags(c.tags || []);
+            setMediaFiles(c.media_files || []);
+            setHistory(c.history || []);
+          }
         }
 
-        // 2. Fetch all available tags from the unified concepts route
-        const tagsRes = await api.get("/concepts/tags");
-        setAllTags(tagsRes.data.map((t) => (typeof t === 'string' ? t : t.name)));
+        const { data: allConcepts } = await supabase.from("concepts").select("category, tags");
 
-        // 3. NEW: Fetch all concepts to extract existing category paths for the datalist
-        const conceptsRes = await api.get("/concepts");
-        // We use a Set to ensure the list only contains unique folder paths
-        const uniqueCats = [
-          ...new Set(conceptsRes.data.map((item) => item.category).filter(Boolean))
-        ];
-        setExistingCategories(uniqueCats);
+        if (allConcepts) {
+          const uniqueCats = [...new Set(allConcepts.map(i => i.category).filter(Boolean))];
+          setExistingCategories(uniqueCats);
 
+          const flatTags = allConcepts.flatMap(i => i.tags || []);
+          setAllTags([...new Set(flatTags)]);
+        }
       } catch (err) {
         console.error("Initialization Error:", err);
       } finally {
         setLoading(false);
       }
     };
-
     loadData();
   }, [isEdit, conceptId]);
 
@@ -87,29 +90,44 @@ export default function ConceptForm({ isEdit = false }) {
     const payload = {
       title,
       summary,
-      body,
+      content: body, // Ensure this matches your Supabase 'content' column
       category,
       tags,
       media_files: mediaFiles,
-      history: updatedHistory
+      history: updatedHistory,
+      user_id: user?.id // Link to the current authenticated user
     };
 
     try {
-      let finalId = conceptId;
-
       if (isEdit) {
-        await api.put(`/concepts/${conceptId}`, payload);
+        const { error } = await supabase
+          .from("concepts")
+          .update(payload)
+          .eq("id", conceptId);
+
+        if (error) throw error;
       } else {
-        const res = await api.post("/concepts", payload);
-        finalId = res.data.id; // Get the new ID for the redirect
+        const { data, error } = await supabase
+          .from("concepts")
+          .insert([payload])
+          .select();
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setCurrentAddition("");
+          navigate(`/encyclopedia/${data[0].id}`, { replace: true });
+          return; // Exit early on successful creation
+        }
       }
 
-      // Success: Clear local entry state and navigate to the entry view
+      // Success for Edit mode
       setCurrentAddition("");
-      navigate(`/encyclopedia/${finalId}`, { replace: true });
+      navigate(`/encyclopedia/${conceptId}`, { replace: true });
+
     } catch (err) {
       console.error("Save Error:", err);
-      alert(err.response?.data?.detail || "Error saving intelligence data. Check backend logs.");
+      alert(err.message || "Error saving intelligence data.");
     }
   };
 
@@ -134,17 +152,23 @@ export default function ConceptForm({ isEdit = false }) {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
 
     try {
-      const res = await api.post("/concepts/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setMediaFiles([...mediaFiles, res.data.url]);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `uploads/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('media') // Make sure this bucket exists in Supabase
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('media').getPublicUrl(filePath);
+      setMediaFiles([...mediaFiles, data.publicUrl]);
     } catch (err) {
       console.error("Upload Error:", err);
-      alert("Media upload failed.");
+      alert("Media upload failed: " + err.message);
     } finally {
       setUploading(false);
     }
@@ -275,53 +299,53 @@ export default function ConceptForm({ isEdit = false }) {
 
         {/* Youtube Upload */}
         <div className="space-y-4 border-t border-gray-100 pt-6">
-          <label className="text-[10px] font-black uppercase tracking-widest text-blue-600 ml-1">Media & Video Links</label>
+      <label className="text-[10px] font-black uppercase tracking-widest text-blue-600 ml-1">Media & Video Links</label>
 
-          <div className="flex gap-2">
-            <input
-              type="url"
-              placeholder="Add YouTube, Vimeo, or Shorts link..."
-              className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm"
-              value={linkInput}
-              onChange={(e) => setLinkInput(e.target.value)}
-            />
+      <div className="flex gap-2">
+        <input
+          type="url"
+          placeholder="Add YouTube, Vimeo, or Shorts link..."
+          className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm"
+          value={linkInput}
+          onChange={(e) => setLinkInput(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={addLink}
+          className="bg-blue-600 text-white px-4 rounded-xl text-[10px] font-black uppercase"
+        >
+          Add Link
+        </button>
+      </div>
+
+      {/* Keep your existing file upload label and the mediaFiles.map grid below it */}
+      <div className="flex items-center justify-center w-full">
+        {/* ... your existing label for handleUpload ... */}
+      </div>
+
+      <div className="grid grid-cols-4 gap-4 mt-4">
+        {mediaFiles.map((url, idx) => (
+          <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-gray-900">
+            {url.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+              <img src={url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center p-2">
+                 <span className="text-white text-[8px] font-black uppercase tracking-tighter text-center break-all opacity-50">
+                   {url.includes('youtube') ? 'YouTube' : 'Video Link'}
+                 </span>
+              </div>
+            )}
             <button
               type="button"
-              onClick={addLink}
-              className="bg-blue-600 text-white px-4 rounded-xl text-[10px] font-black uppercase"
+              onClick={() => removeMedia(url)}
+              className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
             >
-              Add Link
+              ×
             </button>
           </div>
-
-          {/* Keep your existing file upload label and the mediaFiles.map grid below it */}
-          <div className="flex items-center justify-center w-full">
-            {/* ... your existing label for handleUpload ... */}
-          </div>
-
-          <div className="grid grid-cols-4 gap-4 mt-4">
-            {mediaFiles.map((url, idx) => (
-              <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-gray-900">
-                {url.match(/\.(jpg|jpeg|png|gif)$/i) ? (
-                  <img src={url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-2">
-                     <span className="text-white text-[8px] font-black uppercase tracking-tighter text-center break-all opacity-50">
-                       {url.includes('youtube') ? 'YouTube' : 'Video Link'}
-                     </span>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => removeMedia(url)}
-                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+        ))}
+      </div>
+    </div>
 
         {/* Media Upload */}
         <div className="space-y-4 border-t border-gray-100 pt-6">

@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
-import { api } from "../api";
+import { supabase } from "../supabaseClient"; // NEW
+import { useAuth } from "../context/AuthContext"; // NEW
 import { useNavigate } from "react-router-dom";
 
 export default function CreateDrill() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [formData, setFormData] = useState({
     title: "",
@@ -23,19 +25,36 @@ export default function CreateDrill() {
   const [videoLinkInput, setVideoLinkInput] = useState("");
 
   useEffect(() => {
-    // 1. Fetch tags from the encyclopedia route
-    api.get("/concepts/tags").then((res) => {
-      setAvailableTags(res.data.map((t) => (typeof t === 'string' ? t : t.name)));
-    });
+  const fetchMetadata = async () => {
+    try {
+      // 1. Fetch tags from a dedicated 'tags' table
+      // (Or from a 'tags' column if they are stored as JSONB in concepts)
+      const { data: tagsData, error: tagsError } = await supabase
+        .from('tags')
+        .select('name');
 
-    // 2. Fetch all current category paths for the datalist suggestions
-    api.get("/concepts").then((res) => {
-      const uniqueCats = [
-        ...new Set(res.data.map((item) => item.category).filter(Boolean))
-      ];
-      setExistingCategories(uniqueCats);
-    });
-  }, []);
+      if (tagsData) {
+        setAvailableTags(tagsData.map(t => t.name));
+      }
+
+      // 2. Fetch all unique categories from the 'concepts' table
+      const { data: conceptsData, error: conceptsError } = await supabase
+        .from('concepts')
+        .select('category');
+
+      if (conceptsData) {
+        const uniqueCats = [
+          ...new Set(conceptsData.map((item) => item.category).filter(Boolean))
+        ];
+        setExistingCategories(uniqueCats);
+      }
+    } catch (err) {
+      console.error("Metadata fetch error:", err);
+    }
+  };
+
+  fetchMetadata();
+}, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -65,26 +84,48 @@ export default function CreateDrill() {
   };
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+      const file = e.target.files[0];
+      if (!file) return;
 
-    setUploading(true);
-    const data = new FormData();
-    data.append("file", file);
+      // Optional: Check file size (e.g., limit to 50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        return alert("File is too large. Please keep videos under 50MB.");
+      }
 
-    try {
-      const res = await api.post("/concepts/upload", data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      // Add the new URL to our media list
-      setMediaFiles([...mediaFiles, res.data.url]);
-    } catch (err) {
-      console.error("Upload Error:", err);
-      alert("Failed to upload video.");
-    } finally {
-      setUploading(false);
-    }
-  };
+      setUploading(true);
+      try {
+        // 1. Create a clean path: userId/timestamp-filename
+        const fileExt = file.name.split('.').pop();
+        const cleanFileName = file.name.replace(/[^\w\s\.]/gi, '').replace(/\s+/g, '_');
+        const filePath = `${user.id}/${Date.now()}_${cleanFileName}`;
+
+        // 2. Upload to the 'media' bucket
+        const { data, error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) throw uploadError;
+
+        // 3. Generate the Public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('media')
+          .getPublicUrl(filePath);
+
+        console.log("File uploaded to bucket. Public URL:", publicUrl);
+
+        // 4. Update the UI state so the user sees the new file
+        setMediaFiles(prev => [...prev, publicUrl]);
+
+      } catch (err) {
+        console.error("Storage Error:", err.message);
+        alert(`Upload failed: ${err.message}`);
+      } finally {
+        setUploading(false);
+      }
+    };
 
   const addVideoLink = () => {
       if (videoLinkInput.trim()) {
@@ -96,45 +137,61 @@ export default function CreateDrill() {
   const handleSubmit = async (e) => {
       e.preventDefault();
 
-      // 1. Title check to prevent empty submissions
+      // 1. Safety Check
+      if (!user?.id) {
+        console.error("User context missing");
+        return alert("Auth session not found. Please refresh the page.");
+      }
+
+      // 2. Validation
       if (!formData.title.trim()) {
         return alert("A drill title is required.");
       }
 
-      // 2. Prepare the payload
-      // Since we are now using addVideoLink to push links directly into the mediaFiles array,
-      // finalMedia is just a copy of the current mediaFiles state.
-      const finalMedia = [...mediaFiles];
+      setUploading(true);
+      console.log("Attempting to save drill:", formData.title);
 
+      // 3. Construct Payload (Matched to your specific table columns)
       const payload = {
-        title: formData.title,
-        summary: "Drill Exercise", // Default summary for drills
-        body: formData.description,
-        category: formData.category,
-        tags: formData.tag_names,
-        media_files: finalMedia,
-        // BACKEND SYNC: We pick the first video to populate the legacy 'video_url' column
-        video_url: finalMedia.length > 0 ? finalMedia[0] : null,
+        user_id: user.id,
+        title: formData.title.trim(),
+        summary: "Drill Exercise",
+        content: formData.description,
+        category: formData.category || "General",
+        type: "drill",
+        tags: formData.tag_names || [],
+        media_files: [...mediaFiles],
         history: [
           {
             date: new Date().toISOString(),
-            addition: "Initial drill creation with synchronized video library."
+            addition: "Initial drill creation via Supabase Intelligence System."
           }
         ]
       };
 
-  try {
-    // We hit the unified concepts endpoint
-    const res = await api.post("/concepts", payload);
+      try {
+        // 4. Execute Insert (No .select() to avoid the RLS timeout hang)
+        const { error } = await supabase
+          .from('concepts')
+          .insert([payload]);
 
-    // 3. Success: Navigate to the new entry in the encyclopedia
-    navigate(`/encyclopedia/${res.data.id}`);
-  } catch (err) {
-    console.error("Save Error:", err);
-    const errorMsg = err.response?.data?.detail || "Error saving drill. Please check connection.";
-    alert(errorMsg);
-  }
-};
+        if (error) {
+          console.error("Supabase Error:", error);
+          throw error;
+        }
+
+        // 5. Success Logic
+        console.log("Insert successful! Redirecting to Encyclopedia.");
+        navigate("/encyclopedia");
+
+      } catch (err) {
+        console.error("Full Submission Error:", err);
+        alert(`Submission Failed: ${err.message || "Check network connection"}`);
+      } finally {
+        // Always re-enable the button
+        setUploading(false);
+      }
+    };
 
   return (
     <div className="max-w-2xl mx-auto p-8 bg-white shadow-2xl rounded-2xl my-10 border border-gray-100">
