@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 class ConceptBase(BaseModel):
     title: str
@@ -8,6 +8,9 @@ class ConceptBase(BaseModel):
     category: Optional[str] = None
     level: Optional[str] = None
     created_by: Optional[str] = None
+    tags: List[str] = []  # <--- ADD THIS LINE
+    media_files: List[str] = []  # Recommended to add this too based on your JSX
+    history: List[dict] = []
 
 class ConceptCreate(ConceptBase):
     pass

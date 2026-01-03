@@ -254,6 +254,29 @@ export default function ConceptForm({ isEdit = false }) {
                 <label className="text-[10px] font-black uppercase tracking-widest text-blue-600">
                   Active Tags
                 </label>
+                {/* NEW: Input for custom tags */}
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      type="text"
+                      placeholder="New tag..."
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      className="flex-1 p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddNewTag();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddNewTag}
+                      className="bg-gray-100 px-3 rounded-lg text-blue-600 font-bold text-xs hover:bg-blue-600 hover:text-white transition-all"
+                    >
+                      +
+                    </button>
+                  </div>
                 <div className="flex flex-wrap gap-2">
                   {allTags.map((t) => (
                     <button
