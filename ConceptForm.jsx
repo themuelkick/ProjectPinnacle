@@ -22,6 +22,14 @@ export default function ConceptForm({ isEdit = false }) {
   const [currentAddition, setCurrentAddition] = useState("");
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(isEdit);
+  const [linkInput, setLinkInput] = useState("");
+
+    const addLink = () => {
+      if (linkInput.trim()) {
+        setMediaFiles([...mediaFiles, linkInput.trim()]);
+        setLinkInput("");
+      }
+    };
 
   useEffect(() => {
     const loadData = async () => {
@@ -246,6 +254,29 @@ export default function ConceptForm({ isEdit = false }) {
                 <label className="text-[10px] font-black uppercase tracking-widest text-blue-600">
                   Active Tags
                 </label>
+                {/* NEW: Input for custom tags */}
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      type="text"
+                      placeholder="New tag..."
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      className="flex-1 p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddNewTag();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddNewTag}
+                      className="bg-gray-100 px-3 rounded-lg text-blue-600 font-bold text-xs hover:bg-blue-600 hover:text-white transition-all"
+                    >
+                      +
+                    </button>
+                  </div>
                 <div className="flex flex-wrap gap-2">
                   {allTags.map((t) => (
                     <button
@@ -264,6 +295,56 @@ export default function ConceptForm({ isEdit = false }) {
                 </div>
               </div>
             </div>
+
+        {/* Youtube Upload */}
+        <div className="space-y-4 border-t border-gray-100 pt-6">
+          <label className="text-[10px] font-black uppercase tracking-widest text-blue-600 ml-1">Media & Video Links</label>
+
+          <div className="flex gap-2">
+            <input
+              type="url"
+              placeholder="Add YouTube, Vimeo, or Shorts link..."
+              className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm"
+              value={linkInput}
+              onChange={(e) => setLinkInput(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={addLink}
+              className="bg-blue-600 text-white px-4 rounded-xl text-[10px] font-black uppercase"
+            >
+              Add Link
+            </button>
+          </div>
+
+          {/* Keep your existing file upload label and the mediaFiles.map grid below it */}
+          <div className="flex items-center justify-center w-full">
+            {/* ... your existing label for handleUpload ... */}
+          </div>
+
+          <div className="grid grid-cols-4 gap-4 mt-4">
+            {mediaFiles.map((url, idx) => (
+              <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-gray-900">
+                {url.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+                  <img src={url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-2">
+                     <span className="text-white text-[8px] font-black uppercase tracking-tighter text-center break-all opacity-50">
+                       {url.includes('youtube') ? 'YouTube' : 'Video Link'}
+                     </span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeMedia(url)}
+                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Media Upload */}
         <div className="space-y-4 border-t border-gray-100 pt-6">

@@ -20,6 +20,7 @@ export default function CreateDrill() {
   const [uploading, setUploading] = useState(false);
   const [mediaFiles, setMediaFiles] = useState([]);
   const [videoLink, setVideoLink] = useState("");
+  const [videoLinkInput, setVideoLinkInput] = useState("");
 
   useEffect(() => {
     // 1. Fetch tags from the encyclopedia route
@@ -85,34 +86,55 @@ export default function CreateDrill() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Prepare media: Combine uploaded files and manual link
-    const finalMedia = [...mediaFiles];
-    if (videoLink.trim()) finalMedia.push(videoLink.trim());
-
-    // We use the /concepts POST endpoint because your backend router
-    // is set up to handle both Concepts and Drills correctly there.
-    const payload = {
-      title: formData.title,
-      summary: "Drill Exercise", // Default summary for drills
-      body: formData.description,
-      category: formData.category,
-      tags: formData.tag_names,
-      media_files: finalMedia,
-      history: [{ date: new Date().toISOString(), addition: "Initial drill creation." }]
+  const addVideoLink = () => {
+      if (videoLinkInput.trim()) {
+        setMediaFiles([...mediaFiles, videoLinkInput.trim()]);
+        setVideoLinkInput("");
+      }
     };
 
-    try {
-      const res = await api.post("/concepts", payload);
-      // Redirect to the newly created drill in the encyclopedia
-      navigate(`/encyclopedia/${res.data.id}`);
-    } catch (err) {
-      console.error("Save Error:", err);
-      alert("Error saving drill.");
-    }
-  };
+  const handleSubmit = async (e) => {
+      e.preventDefault();
+
+      // 1. Title check to prevent empty submissions
+      if (!formData.title.trim()) {
+        return alert("A drill title is required.");
+      }
+
+      // 2. Prepare the payload
+      // Since we are now using addVideoLink to push links directly into the mediaFiles array,
+      // finalMedia is just a copy of the current mediaFiles state.
+      const finalMedia = [...mediaFiles];
+
+      const payload = {
+        title: formData.title,
+        summary: "Drill Exercise", // Default summary for drills
+        body: formData.description,
+        category: formData.category,
+        tags: formData.tag_names,
+        media_files: finalMedia,
+        // BACKEND SYNC: We pick the first video to populate the legacy 'video_url' column
+        video_url: finalMedia.length > 0 ? finalMedia[0] : null,
+        history: [
+          {
+            date: new Date().toISOString(),
+            addition: "Initial drill creation with synchronized video library."
+          }
+        ]
+      };
+
+  try {
+    // We hit the unified concepts endpoint
+    const res = await api.post("/concepts", payload);
+
+    // 3. Success: Navigate to the new entry in the encyclopedia
+    navigate(`/encyclopedia/${res.data.id}`);
+  } catch (err) {
+    console.error("Save Error:", err);
+    const errorMsg = err.response?.data?.detail || "Error saving drill. Please check connection.";
+    alert(errorMsg);
+  }
+};
 
   return (
     <div className="max-w-2xl mx-auto p-8 bg-white shadow-2xl rounded-2xl my-10 border border-gray-100">
@@ -189,36 +211,68 @@ export default function CreateDrill() {
         </div>
 
         {/* Video Handling */}
-        <div className="space-y-4 border-t border-gray-100 pt-6">
-          <label className="text-[10px] font-black uppercase tracking-widest text-blue-600 ml-1">Video Documentation</label>
+            <div className="space-y-4 border-t border-gray-100 pt-6">
+              <label className="text-[10px] font-black uppercase tracking-widest text-blue-600 ml-1">
+                Video & Media Library
+              </label>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="flex flex-col items-center px-4 py-4 bg-gray-50 text-blue-500 rounded-xl border-2 border-dashed border-gray-200 cursor-pointer hover:bg-blue-50 transition-all">
-              <span className="text-xs font-bold uppercase tracking-widest">
-                {uploading ? "Uploading..." : "Upload MP4"}
-              </span>
-              <input type="file" accept="video/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-            </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* File Upload Trigger */}
+                <label className="flex flex-col items-center justify-center px-4 py-4 bg-gray-50 text-blue-500 rounded-xl border-2 border-dashed border-gray-200 cursor-pointer hover:bg-blue-50 transition-all">
+                  <span className="text-xs font-bold uppercase tracking-widest">
+                    {uploading ? "Uploading..." : "Upload MP4"}
+                  </span>
+                  <input type="file" accept="video/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                </label>
 
-            <input
-              type="url"
-              placeholder="Or paste YouTube/Vimeo link"
-              className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm"
-              value={videoLink}
-              onChange={(e) => setVideoLink(e.target.value)}
-            />
-          </div>
-
-          {mediaFiles.length > 0 && (
-            <div className="flex gap-2">
-              {mediaFiles.map((url, i) => (
-                <div key={i} className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded">
-                  ✓ VIDEO ATTACHED
+                {/* URL Link Input + Add Button */}
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="Paste YouTube, Vimeo, or Shorts link"
+                    className="flex-1 p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm focus:ring-2 focus:ring-blue-500 transition-all"
+                    value={videoLinkInput} // Make sure to define const [videoLinkInput, setVideoLinkInput] = useState("");
+                    onChange={(e) => setVideoLinkInput(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={addVideoLink} // Make sure to define the addVideoLink function from the previous step
+                    className="bg-blue-600 text-white px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all"
+                  >
+                    Add
+                  </button>
                 </div>
-              ))}
+              </div>
+
+              {/* Active Media List (Previews & Deletion) */}
+              {mediaFiles.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                  {mediaFiles.map((url, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between bg-white border border-gray-200 p-2 pl-3 rounded-xl shadow-sm group"
+                    >
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[8px] font-black text-blue-500 uppercase tracking-tighter">
+                          {url.includes("youtube.com") || url.includes("youtu.be") ? "YouTube Source" : "Direct Video/File"}
+                        </span>
+                        <span className="text-[10px] font-bold text-gray-600 truncate max-w-[180px]">
+                          {url}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setMediaFiles(mediaFiles.filter((_, idx) => idx !== i))}
+                        className="text-gray-300 hover:text-red-500 p-2 transition-colors"
+                      >
+                        <span className="text-lg font-bold">×</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
         <button
           type="submit"
